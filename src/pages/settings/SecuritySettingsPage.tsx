@@ -1,10 +1,11 @@
-import { Shield, Key, Lock, Eye, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Shield, Key, Lock, Eye, AlertTriangle, CheckCircle, Sun, Moon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface SecurityCheck {
   id: string;
@@ -22,6 +23,7 @@ const securityChecks: SecurityCheck[] = [
 ];
 
 export default function SecuritySettingsPage() {
+  const { theme, toggleTheme } = useTheme();
   const [settings, setSettings] = useState({
     localProcessingOnly: true,
     auditLogging: true,
@@ -94,6 +96,28 @@ export default function SecuritySettingsPage() {
                   {getStatusBadge(check.status)}
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Appearance */}
+          <div className="border-2 border-border">
+            <div className="px-4 py-3 bg-muted border-b-2 border-border flex items-center gap-2">
+              {theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+              <h3 className="font-bold text-sm uppercase tracking-wider">Appearance</h3>
+            </div>
+            <div className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Dark Mode</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Switch between light and dark theme
+                  </p>
+                </div>
+                <Switch
+                  checked={theme === 'dark'}
+                  onCheckedChange={toggleTheme}
+                />
+              </div>
             </div>
           </div>
 
