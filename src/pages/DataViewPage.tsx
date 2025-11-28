@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { FileUploader } from '@/components/data/FileUploader';
 import { DataGrid } from '@/components/data/DataGrid';
 import { TableSelector } from '@/components/data/TableSelector';
+import { SampleDataLoader } from '@/components/data/SampleDataLoader';
 import { useDuckDBContext } from '@/contexts/DuckDBContext';
 import { Download, Upload, Database } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,7 @@ export default function DataViewPage() {
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [data, setData] = useState<{ columns: string[]; rows: unknown[][] }>({ columns: [], rows: [] });
   const [showUploader, setShowUploader] = useState(false);
+  const [showSampleData, setShowSampleData] = useState(false);
 
   useEffect(() => {
     if (selectedTable) {
@@ -69,6 +71,14 @@ export default function DataViewPage() {
           <div className="flex gap-2">
             <Button
               variant="outline"
+              onClick={() => setShowSampleData(!showSampleData)}
+              className="gap-2"
+            >
+              <Database className="w-4 h-4" />
+              Sample Data
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => setShowUploader(!showUploader)}
               className="gap-2"
             >
@@ -94,6 +104,12 @@ export default function DataViewPage() {
         </div>
 
         <div className="flex-1 p-6 overflow-auto">
+          {showSampleData && (
+            <div className="mb-6">
+              <SampleDataLoader />
+            </div>
+          )}
+
           {showUploader && (
             <div className="mb-6">
               <FileUploader onUploadComplete={handleUploadComplete} />
@@ -115,12 +131,18 @@ export default function DataViewPage() {
               <Database className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
               <p className="font-bold mb-2">No Table Selected</p>
               <p className="text-sm text-muted-foreground mb-4">
-                Upload a file or select a table from the sidebar
+                Upload a file, load sample data, or select a table from the sidebar
               </p>
-              <Button onClick={() => setShowUploader(true)} className="gap-2">
-                <Upload className="w-4 h-4" />
-                Upload File
-              </Button>
+              <div className="flex gap-2 justify-center">
+                <Button onClick={() => setShowSampleData(true)} className="gap-2">
+                  <Database className="w-4 h-4" />
+                  Load Sample Data
+                </Button>
+                <Button onClick={() => setShowUploader(true)} variant="outline" className="gap-2">
+                  <Upload className="w-4 h-4" />
+                  Upload File
+                </Button>
+              </div>
             </div>
           )}
         </div>

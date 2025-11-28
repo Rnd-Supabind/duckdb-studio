@@ -3,6 +3,8 @@ import { Play, Plus, Clock, CheckCircle, AlertCircle, Settings } from 'lucide-re
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { CreateWorkflowDialog } from '@/components/workflows/CreateWorkflowDialog';
+import { toast } from 'sonner';
 
 interface Workflow {
   id: string;
@@ -12,6 +14,8 @@ interface Workflow {
   status: 'active' | 'paused' | 'error';
   lastRun?: string;
   nextRun?: string;
+  type?: 'sql' | 'javascript';
+  content?: string;
 }
 
 const mockWorkflows: Workflow[] = [
@@ -23,6 +27,7 @@ const mockWorkflows: Workflow[] = [
     status: 'active',
     lastRun: '2024-01-15T06:00:00Z',
     nextRun: '2024-01-16T06:00:00Z',
+    type: 'sql',
   },
   {
     id: '2',
@@ -31,11 +36,28 @@ const mockWorkflows: Workflow[] = [
     schedule: '0 0 * * 1',
     status: 'paused',
     lastRun: '2024-01-08T00:00:00Z',
+    type: 'sql',
   },
 ];
 
 export default function WorkflowsPage() {
-  const [workflows] = useState<Workflow[]>(mockWorkflows);
+  const [workflows, setWorkflows] = useState<Workflow[]>(mockWorkflows);
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  const handleCreateWorkflow = (data: any) => {
+    const newWorkflow: Workflow = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: data.name,
+      description: data.description || '',
+      schedule: data.schedule,
+      status: 'paused',
+      type: data.type,
+      content: data.content,
+      nextRun: new Date().toISOString(), // Mock next run
+    };
+    setWorkflows([...workflows, newWorkflow]);
+    toast.success('Workflow created successfully');
+  };
 
   const getStatusIcon = (status: Workflow['status']) => {
     switch (status) {
@@ -71,7 +93,7 @@ export default function WorkflowsPage() {
               Schedule and automate your ETL pipelines
             </p>
           </div>
-          <Button className="gap-2">
+          <Button className="gap-2" onClick={() => setIsCreateOpen(true)}>
             <Plus className="w-4 h-4" />
             New Workflow
           </Button>
@@ -99,6 +121,9 @@ export default function WorkflowsPage() {
                     <div className="flex items-center gap-2">
                       <h3 className="font-bold">{workflow.name}</h3>
                       {getStatusBadge(workflow.status)}
+                      <Badge variant="outline" className="font-mono text-xs">
+                        {workflow.type}
+                      </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">
                       {workflow.description}
@@ -127,6 +152,12 @@ export default function WorkflowsPage() {
           ))}
         </div>
       </div>
+
+      <CreateWorkflowDialog
+        open={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        onSubmit={handleCreateWorkflow}
+      />
     </div>
   );
 }

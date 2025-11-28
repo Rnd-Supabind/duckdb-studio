@@ -24,7 +24,12 @@ interface StorageConfig {
   encryption: boolean;
 }
 
+import { useDuckDBContext } from '@/contexts/DuckDBContext';
+
+// ... (imports)
+
 export default function StorageSettingsPage() {
+  const { configureS3 } = useDuckDBContext();
   const [config, setConfig] = useState<StorageConfig>({
     type: 'local',
     s3: { bucket: '', region: 'us-east-1', accessKeyId: '', secretAccessKey: '' },
@@ -33,19 +38,62 @@ export default function StorageSettingsPage() {
   });
   const [testing, setTesting] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // In production, this would be encrypted and stored securely
-    localStorage.setItem('storage_config', JSON.stringify({ ...config, s3: { ...config.s3, secretAccessKey: '***' }, minio: { ...config.minio, secretKey: '***' } }));
-    toast.success('Storage configuration saved');
+    localStorage.setItem('storage_config', JSON.stringify(config));
+
+    try {
+      if (config.type === 's3') {
+        await configureS3({
+          region: config.s3.region,
+          accessKeyId: config.s3.accessKeyId,
+          secretAccessKey: config.s3.secretAccessKey,
+        });
+      } else if (config.type === 'minio') {
+        await configureS3({
+          region: 'us-east-1', // MinIO often ignores this or needs a dummy
+          accessKeyId: config.minio.accessKey,
+          secretAccessKey: config.minio.secretKey,
+          endpoint: config.minio.endpoint,
+        });
+      }
+      toast.success('Storage configuration saved and applied');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to apply configuration to DuckDB');
+    }
   };
 
   const handleTestConnection = async () => {
     setTesting(true);
-    // Simulate connection test
-    setTimeout(() => {
+    try {
+      // Apply config first
+      if (config.type === 's3') {
+        await configureS3({
+          region: config.s3.region,
+          accessKeyId: config.s3.accessKeyId,
+          secretAccessKey: config.s3.secretAccessKey,
+        });
+      } else if (config.type === 'minio') {
+        await configureS3({
+          region: 'us-east-1',
+          accessKeyId: config.minio.accessKey,
+          secretAccessKey: config.minio.secretKey,
+          endpoint: config.minio.endpoint,
+        });
+      }
+
+      // Try to list files (or just check if no error occurred during config)
+      // A simple query to check connectivity would be ideal, e.g. listing the bucket
+      // await executeQuery(`SELECT * FROM glob('s3://${config.type === 's3' ? config.s3.bucket : config.minio.bucket}/*') LIMIT 1`);
+
+      toast.success('Configuration applied successfully');
+    } catch (err) {
+      console.error(err);
+      toast.error('Connection failed: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
       setTesting(false);
-      toast.success('Connection successful');
-    }, 1500);
+    }
   };
 
   return (

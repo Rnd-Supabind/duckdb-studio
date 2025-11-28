@@ -1,9 +1,12 @@
 import { useState, useCallback } from 'react';
 import Editor from '@monaco-editor/react';
-import { Play, Save, Download, Loader2 } from 'lucide-react';
+import { Play, Save, Download, Loader2, Server, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { useDuckDBContext } from '@/contexts/DuckDBContext';
+import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
 
 interface QueryEditorProps {
@@ -16,6 +19,7 @@ export function QueryEditor({ initialQuery = '', onQueryResult }: QueryEditorPro
   const [query, setQuery] = useState(initialQuery || 'SELECT * FROM your_table LIMIT 100');
   const [executing, setExecuting] = useState(false);
   const [templateName, setTemplateName] = useState('');
+  const [useBackend, setUseBackend] = useState(false);
 
   const handleExecute = useCallback(async () => {
     if (!query.trim()) {
@@ -25,15 +29,23 @@ export function QueryEditor({ initialQuery = '', onQueryResult }: QueryEditorPro
 
     setExecuting(true);
     try {
-      const result = await executeQuery(query);
-      onQueryResult?.(result);
-      toast.success(`Query executed: ${result.rows.length} rows returned`);
+      if (useBackend) {
+        // Execute on backend
+        const result = await apiClient.executeQuery({ query });
+        onQueryResult?.(result);
+        toast.success(`Query executed on server: ${result.rows_affected} rows in ${result.execution_time_ms}ms`);
+      } else {
+        // Execute on WASM
+        const result = await executeQuery(query);
+        onQueryResult?.(result);
+        toast.success(`Query executed locally: ${result.rows.length} rows returned`);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Query execution failed');
     } finally {
       setExecuting(false);
     }
-  }, [query, executeQuery, onQueryResult]);
+  }, [query, executeQuery, onQueryResult, useBackend]);
 
   const handleSaveTemplate = useCallback(() => {
     if (!templateName.trim()) {
@@ -68,7 +80,19 @@ export function QueryEditor({ initialQuery = '', onQueryResult }: QueryEditorPro
     <div className="border-2 border-border h-full flex flex-col">
       <div className="flex items-center justify-between px-4 py-2 bg-muted border-b-2 border-border">
         <h3 className="font-bold text-sm uppercase tracking-wider">SQL Editor</h3>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Monitor className="w-4 h-4" />
+            <Switch
+              id="execution-mode"
+              checked={useBackend}
+              onCheckedChange={setUseBackend}
+            />
+            <Server className="w-4 h-4" />
+            <Label htmlFor="execution-mode" className="text-xs cursor-pointer">
+              {useBackend ? 'Server' : 'Browser'}
+            </Label>
+          </div>
           <Button
             size="sm"
             onClick={handleExecute}

@@ -8,7 +8,8 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "changelog": "node scripts/generate-changelog.js"
   },
   "dependencies": {
     "@duckdb/duckdb-wasm": "^1.30.0",

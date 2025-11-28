@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  api:
+    build: ./backend
+    container_name: dataforge-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=mysql+pymysql://user:password@db/dataforge
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - DUCKDB_EXTENSIONS=mysql,postgres,httpfs,aws
+    depends_on:
+      - db
+      - minio
+    volumes:
+      - ./backend:/app
+      - duckdb_data:/data
+    restart: always
+
+  db:
+    image: mysql:8.0
+    container_name: dataforge-db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: dataforge
+      MYSQL_USER: user
+      MYSQL_PASSWORD: password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: always
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: dataforge-pma
+    environment:
+      PMA_HOST: db
+      MYSQL_ROOT_PASSWORD: rootpassword
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
+    restart: always
+
+  minio:
+    image: minio/minio
+    container_name: dataforge-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    restart: always
+
+volumes:
+  mysql_data:
+  minio_data:
+  duckdb_data:
