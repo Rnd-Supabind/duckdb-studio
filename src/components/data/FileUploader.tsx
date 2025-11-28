@@ -16,8 +16,20 @@ export function FileUploader({ onUploadComplete }: FileUploaderProps) {
   const [uploading, setUploading] = useState(false);
   const [tableName, setTableName] = useState('');
 
+  const sanitizeTableName = (name: string): string => {
+    // Remove file extension and replace invalid characters with underscores
+    let sanitized = name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_');
+    // If starts with a number, prefix with 't_'
+    if (/^[0-9]/.test(sanitized)) {
+      sanitized = 't_' + sanitized;
+    }
+    // Remove consecutive underscores and trim
+    sanitized = sanitized.replace(/_+/g, '_').replace(/^_|_$/g, '');
+    return sanitized || 'data_table';
+  };
+
   const handleFile = useCallback(async (file: File) => {
-    const name = tableName || file.name.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_]/g, '_');
+    const name = tableName ? sanitizeTableName(tableName) : sanitizeTableName(file.name);
     setUploading(true);
 
     try {
