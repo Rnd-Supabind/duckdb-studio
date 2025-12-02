@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Database, Cloud, HardDrive, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,8 +25,7 @@ interface StorageConfig {
 }
 
 import { useDuckDBContext } from '@/contexts/DuckDBContext';
-
-// ... (imports)
+import { apiClient } from '@/lib/api';
 
 export default function StorageSettingsPage() {
   const { configureS3 } = useDuckDBContext();
@@ -37,12 +36,96 @@ export default function StorageSettingsPage() {
     encryption: true,
   });
   const [testing, setTesting] = useState(false);
+  const [backendStatus, setBackendStatus] = useState<'unknown' | 'ok' | 'error'>('unknown');
+  const [backendMessage, setBackendMessage] = useState<string | null>(null);
+  const [backendBuckets, setBackendBuckets] = useState<string[]>([]);
+
+  // Load existing backend config on mount
+  useEffect(() => {
+    const loadBackendConfig = async () => {
+      try {
+        const existing = await apiClient.getStorageConfig();
+        if (!existing) {
+          setBackendStatus('unknown');
+          return;
+        }
+
+        if (existing.storage_type === 'minio') {
+          setConfig((prev) => ({
+            ...prev,
+            type: 'minio',
+            minio: {
+              ...prev.minio,
+              endpoint: existing.endpoint || prev.minio.endpoint,
+              bucket: existing.bucket_name || prev.minio.bucket,
+            },
+            encryption: existing.encryption_enabled ?? prev.encryption,
+          }));
+        } else if (existing.storage_type === 's3') {
+          setConfig((prev) => ({
+            ...prev,
+            type: 's3',
+            s3: {
+              ...prev.s3,
+              bucket: existing.bucket_name || prev.s3.bucket,
+              region: existing.region || prev.s3.region,
+            },
+            encryption: existing.encryption_enabled ?? prev.encryption,
+          }));
+        }
+
+        setBackendStatus('ok');
+        setBackendMessage(
+          `${existing.storage_type.toUpperCase()} configured for bucket "${existing.bucket_name}"`
+        );
+      } catch (err) {
+        console.error('Failed to load backend storage config', err);
+        setBackendStatus('error');
+        setBackendMessage('Failed to load backend storage configuration');
+      }
+    };
+
+    loadBackendConfig();
+  }, []);
 
   const handleSave = async () => {
-    // In production, this would be encrypted and stored securely
-    localStorage.setItem('storage_config', JSON.stringify(config));
-
     try {
+      // Persist config to backend
+      const payload =
+        config.type === 's3'
+          ? {
+              storage_type: 's3',
+              bucket_name: config.s3.bucket,
+              region: config.s3.region,
+              endpoint: null,
+              access_key: config.s3.accessKeyId,
+              secret_key: config.s3.secretAccessKey,
+              encryption_enabled: config.encryption,
+            }
+          : config.type === 'minio'
+          ? {
+              storage_type: 'minio',
+              bucket_name: config.minio.bucket,
+              region: 'us-east-1',
+              endpoint: config.minio.endpoint,
+              access_key: config.minio.accessKey,
+              secret_key: config.minio.secretKey,
+              encryption_enabled: config.encryption,
+            }
+          : null;
+
+      if (payload) {
+        await apiClient.saveStorageConfig(payload);
+        setBackendStatus('ok');
+        setBackendMessage(
+          `${payload.storage_type.toUpperCase()} configured for bucket "${payload.bucket_name}"`
+        );
+      } else {
+        setBackendStatus('unknown');
+        setBackendMessage('Using local-only storage (no backend config)');
+      }
+
+      // Apply config to DuckDB WASM session for local access
       if (config.type === 's3') {
         await configureS3({
           region: config.s3.region,
@@ -57,7 +140,7 @@ export default function StorageSettingsPage() {
           endpoint: config.minio.endpoint,
         });
       }
-      toast.success('Storage configuration saved and applied');
+      toast.success('Storage configuration saved and applied (backend + browser)');
     } catch (err) {
       console.error(err);
       toast.error('Failed to apply configuration to DuckDB');
@@ -83,11 +166,18 @@ export default function StorageSettingsPage() {
         });
       }
 
-      // Try to list files (or just check if no error occurred during config)
-      // A simple query to check connectivity would be ideal, e.g. listing the bucket
-      // await executeQuery(`SELECT * FROM glob('s3://${config.type === 's3' ? config.s3.bucket : config.minio.bucket}/*') LIMIT 1`);
+      const result = await apiClient.testStorageConnection();
+      setBackendStatus(result.status === 'success' ? 'ok' : 'error');
+      setBackendMessage(result.message || 'Connection test completed');
 
-      toast.success('Configuration applied successfully');
+      try {
+        const buckets = await apiClient.listBuckets();
+        setBackendBuckets(buckets.buckets || []);
+      } catch (e) {
+        // Ignore bucket listing errors here; we already have status from /test
+      }
+
+      toast.success('Backend connection tested');
     } catch (err) {
       console.error(err);
       toast.error('Connection failed: ' + (err instanceof Error ? err.message : String(err)));
@@ -107,6 +197,32 @@ export default function StorageSettingsPage() {
 
       <div className="flex-1 p-6 overflow-auto">
         <div className="max-w-2xl space-y-6">
+          {/* Backend status */}
+          <div className="border-2 border-border">
+            <div className="px-4 py-3 bg-muted border-b-2 border-border flex items-center gap-2">
+              {backendStatus === 'ok' ? (
+                <CheckCircle className="w-4 h-4 text-emerald-500" />
+              ) : backendStatus === 'error' ? (
+                <AlertCircle className="w-4 h-4 text-destructive" />
+              ) : (
+                <Database className="w-4 h-4" />
+              )}
+              <h3 className="font-bold text-sm uppercase tracking-wider">Backend Storage Status</h3>
+            </div>
+            <div className="p-4 text-sm">
+              <p className="mb-2">
+                {backendStatus === 'unknown' && 'No backend storage configuration found yet.'}
+                {backendStatus !== 'unknown' && backendMessage}
+              </p>
+              {backendBuckets.length > 0 && (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  <span className="font-semibold">Buckets:</span>{' '}
+                  {backendBuckets.join(', ')}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Storage Type Selection */}
           <div className="border-2 border-border">
             <div className="px-4 py-3 bg-muted border-b-2 border-border">

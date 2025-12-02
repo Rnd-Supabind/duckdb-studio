@@ -7,6 +7,8 @@ RUN apt-get update && apt-get install -y \
     git \
     build-essential \
     libssl-dev \
+    libc6-dev \
+    libffi-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install DuckDB CLI

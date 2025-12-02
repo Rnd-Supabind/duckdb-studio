@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from app.models.models import AuditLog
+from app.models.billing import ActivityLog
 from datetime import datetime
 import json
 
@@ -17,14 +17,14 @@ async def log_action(
     Create an audit log entry for user actions.
     This is critical for SOC compliance and security monitoring.
     """
-    audit_entry = AuditLog(
+    audit_entry = ActivityLog(
         user_id=user_id,
         action=action,
         resource_type=resource_type,
         resource_id=resource_id,
         details=json.dumps(details) if details else None,
         ip_address=ip_address,
-        user_agent=user_agent,
+        # user_agent=user_agent, # ActivityLog doesn't have user_agent yet, maybe add it? Or ignore.
         timestamp=datetime.utcnow()
     )
     
@@ -35,12 +35,12 @@ async def log_action(
 
 def get_user_audit_logs(db: Session, user_id: int, limit: int = 100):
     """Retrieve audit logs for a specific user"""
-    return db.query(AuditLog).filter(
-        AuditLog.user_id == user_id
-    ).order_by(AuditLog.timestamp.desc()).limit(limit).all()
+    return db.query(ActivityLog).filter(
+        ActivityLog.user_id == user_id
+    ).order_by(ActivityLog.timestamp.desc()).limit(limit).all()
 
 def get_all_audit_logs(db: Session, skip: int = 0, limit: int = 100):
     """Retrieve all audit logs (admin only)"""
-    return db.query(AuditLog).order_by(
-        AuditLog.timestamp.desc()
+    return db.query(ActivityLog).order_by(
+        ActivityLog.timestamp.desc()
     ).offset(skip).limit(limit).all()

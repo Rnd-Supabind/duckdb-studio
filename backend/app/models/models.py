@@ -1,10 +1,8 @@
 from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean, ForeignKey, Enum
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
-
-Base = declarative_base()
+from app.db.database import Base
 
 class UserRole(str, enum.Enum):
     ADMIN = "admin"
@@ -25,6 +23,7 @@ class User(Base):
     # Relationships
     workflows = relationship("Workflow", back_populates="owner")
     audit_logs = relationship("AuditLog", back_populates="user")
+    # Note: subscriptions and quota are in billing.py to avoid circular imports
 
 class Workflow(Base):
     __tablename__ = "workflows"
@@ -41,9 +40,18 @@ class Workflow(Base):
     last_run = Column(DateTime, nullable=True)
     next_run = Column(DateTime, nullable=True)
     
+    # Extended Configuration
+    source_type = Column(String(50), default="none")
+    source_config = Column(Text, default="{}")
+    destination_type = Column(String(50), default="storage")
+    destination_config = Column(Text, default="{}")
+    template_id = Column(Integer, ForeignKey("query_templates.id"), nullable=True)
+    
     # Relationships
     owner = relationship("User", back_populates="workflows")
     executions = relationship("WorkflowExecution", back_populates="workflow")
+    # Optional template relationship for convenience
+    template = relationship("QueryTemplate", primaryjoin="Workflow.template_id==QueryTemplate.id", viewonly=True)
 
 class WorkflowExecution(Base):
     __tablename__ = "workflow_executions"
@@ -56,8 +64,29 @@ class WorkflowExecution(Base):
     error_message = Column(Text, nullable=True)
     rows_affected = Column(Integer, nullable=True)
     
+    # Temporal fields
+    temporal_workflow_id = Column(String(255), nullable=True)
+    temporal_run_id = Column(String(255), nullable=True)
+    
     # Relationships
     workflow = relationship("Workflow", back_populates="executions")
+    execution_steps = relationship("WorkflowExecutionStep", back_populates="execution", cascade="all, delete-orphan")
+
+class WorkflowExecutionStep(Base):
+    __tablename__ = "workflow_execution_steps"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    execution_id = Column(Integer, ForeignKey("workflow_executions.id"))
+    step_number = Column(Integer)
+    step_name = Column(String(255))  # "fetch_source", "transform", "save_destination"
+    status = Column(String(50))  # running, success, failed
+    started_at = Column(DateTime, default=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+    error_message = Column(Text, nullable=True)
+    output_data = Column(Text, nullable=True)  # JSON
+    
+    # Relationships
+    execution = relationship("WorkflowExecution", back_populates="execution_steps")
 
 class StorageConfig(Base):
     __tablename__ = "storage_configs"
@@ -101,3 +130,22 @@ class QueryTemplate(Base):
     is_public = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class Integration(Base):
+    __tablename__ = "integrations"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    provider = Column(String(50), nullable=False)  # openai, anthropic, postgres, etc.
+    name = Column(String(255), nullable=False)
+    encrypted_credentials = Column(Text, nullable=False)
+    config = Column(Text, nullable=True)  # JSON config (non-sensitive)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", back_populates="integrations")
+
+# Add relationship to User model
+User.integrations = relationship("Integration", back_populates="user", cascade="all, delete-orphan")

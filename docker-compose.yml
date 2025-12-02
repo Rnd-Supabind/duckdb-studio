@@ -1,6 +1,26 @@
 version: '3.8'
 
 services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: dataforge-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+      - ./index.html:/app/index.html
+      - ./vite.config.ts:/app/vite.config.ts
+      - ./tsconfig.json:/app/tsconfig.json
+      - ./tsconfig.node.json:/app/tsconfig.node.json
+      - ./package.json:/app/package.json
+    environment:
+      - VITE_API_URL=http://localhost:8000/api/v1
+    command: npm run dev -- --host 0.0.0.0
+    restart: always
+
   api:
     build: ./backend
     container_name: dataforge-api
@@ -34,18 +54,6 @@ services:
       - mysql_data:/var/lib/mysql
     restart: always
 
-  phpmyadmin:
-    image: phpmyadmin/phpmyadmin
-    container_name: dataforge-pma
-    environment:
-      PMA_HOST: db
-      MYSQL_ROOT_PASSWORD: rootpassword
-    ports:
-      - "8080:80"
-    depends_on:
-      - db
-    restart: always
-
   minio:
     image: minio/minio
     container_name: dataforge-minio
@@ -60,7 +68,55 @@ services:
       - minio_data:/data
     restart: always
 
+  temporal:
+    image: temporalio/auto-setup:latest
+    container_name: dataforge-temporal
+    ports:
+      - "7233:7233"
+    environment:
+      - DB=mysql8
+      - MYSQL_USER=user
+      - MYSQL_PWD=password
+      - MYSQL_SEEDS=db
+      - SKIP_DB_CREATE=false
+      - SKIP_DEFAULT_NAMESPACE_CREATION=false
+    depends_on:
+      - db
+    restart: always
+
+  worker:
+    build: ./backend
+    container_name: dataforge-worker
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=mysql+pymysql://user:password@db:3306/dataforge
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - SECRET_KEY=your-secret-key-change-this
+      - ENCRYPTION_KEY=your-encryption-key-change-this
+    depends_on:
+      - db
+      - minio
+      - temporal
+    command: python -m app.scripts.start_workers
+    restart: always
+
+  temporal-ui:
+    image: temporalio/ui:latest
+    container_name: dataforge-temporal-ui
+    ports:
+      - "8088:8080"
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CORS_ORIGINS=http://localhost:5173
+    depends_on:
+      - temporal
+    restart: always
+
 volumes:
   mysql_data:
   minio_data:
   duckdb_data:
+  temporal_data:

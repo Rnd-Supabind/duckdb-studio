@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FileUploader } from '@/components/data/FileUploader';
+import { FileBrowser } from '@/components/data/FileBrowser';
 import { DataGrid } from '@/components/data/DataGrid';
 import { TableSelector } from '@/components/data/TableSelector';
 import { SampleDataLoader } from '@/components/data/SampleDataLoader';
@@ -115,6 +116,9 @@ export default function DataViewPage() {
               <FileUploader onUploadComplete={handleUploadComplete} />
             </div>
           )}
+
+          {/* Enhanced File Browser for Server Mode */}
+          <FileBrowser onFileLoad={setSelectedTable} />
 
           {loading ? (
             <div className="border-2 border-border p-12 text-center">

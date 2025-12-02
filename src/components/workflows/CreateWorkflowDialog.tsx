@@ -1,141 +1,365 @@
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-
-const formSchema = z.object({
-    name: z.string().min(2, 'Name must be at least 2 characters'),
-    description: z.string().optional(),
-    schedule: z.string().min(1, 'Schedule is required'), // Simple cron validation could be added
-    type: z.enum(['sql', 'javascript']),
-    content: z.string().min(1, 'Content is required'),
-});
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { apiClient } from '@/lib/api';
 
 interface CreateWorkflowDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onSubmit: (data: z.infer<typeof formSchema>) => void;
+    onSubmit: (data: any) => void;
 }
 
-export function CreateWorkflowDialog({ open, onOpenChange, onSubmit }: CreateWorkflowDialogProps) {
-    const form = useForm<z.infer<typeof formSchema>>({
-        resolver: zodResolver(formSchema),
-        defaultValues: {
-            name: '',
-            description: '',
-            schedule: '0 0 * * *',
-            type: 'sql',
-            content: '',
-        },
-    });
+export function CreateWorkflowDialog({
+    open,
+    onOpenChange,
+    onSubmit,
+}: CreateWorkflowDialogProps) {
+    const [name, setName] = useState('');
+    const [description, setDescription] = useState('');
+    const [executionType, setExecutionType] = useState<'scheduled' | 'once'>('scheduled');
+    const [schedule, setSchedule] = useState('0 0 * * *');
 
-    const handleSubmit = (data: z.infer<typeof formSchema>) => {
-        onSubmit(data);
-        form.reset();
-        onOpenChange(false);
+    // Source
+    const [sourceType, setSourceType] = useState('none');
+    const [sourceConfig, setSourceConfig] = useState('{}');
+    const [availableFiles, setAvailableFiles] = useState<any[]>([]);
+    const [selectedFiles, setSelectedFiles] = useState<{ path: string, table_name: string, format: string }[]>([]);
+    const [integrations, setIntegrations] = useState<any[]>([]);
+    const [selectedIntegration, setSelectedIntegration] = useState<string>('');
+
+    // Transformation
+    const [templates, setTemplates] = useState<any[]>([]);
+    const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+    const [manualQuery, setManualQuery] = useState('');
+
+    // Destination
+    const [destType, setDestType] = useState('storage');
+    const [destConfig, setDestConfig] = useState('{}');
+
+    useEffect(() => {
+        if (open) {
+            apiClient.getTemplates().then(setTemplates).catch(console.error);
+            apiClient.getIntegrations().then(setIntegrations).catch(console.error);
+            // Fetch user's uploaded files
+            const token = localStorage.getItem('auth_token');
+            fetch('/api/v1/storage/files?folder=uploads', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+                .then(res => {
+                    if (!res.ok) throw new Error('Failed to fetch files');
+                    return res.json();
+                })
+                .then(data => {
+                    console.log('Fetched files:', data);
+                    setAvailableFiles(data.files || []);
+                })
+                .catch(err => {
+                    console.error('Error fetching files:', err);
+                    setAvailableFiles([]);
+                });
+        }
+    }, [open]);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+
+        // Build source config
+        let finalSourceConfig = sourceConfig;
+        if (sourceType === 'file' && selectedFiles.length > 0) {
+            finalSourceConfig = JSON.stringify({ files: selectedFiles });
+        } else if (sourceType === 'integration' && selectedIntegration) {
+            finalSourceConfig = JSON.stringify({ integration_id: parseInt(selectedIntegration) });
+        }
+
+        onSubmit({
+            name,
+            description,
+            schedule: executionType === 'once' ? '@once' : schedule,
+            source_type: sourceType,
+            source_config: finalSourceConfig,
+            template_id: selectedTemplate ? parseInt(selectedTemplate) : null,
+            query: manualQuery,
+            destination_type: destType,
+            destination_config: destConfig,
+        });
+
+        // Reset form
+        setName('');
+        setDescription('');
+        setExecutionType('scheduled');
+        setSchedule('0 0 * * *');
+        setSourceType('none');
+        setSourceConfig('{}');
+        setSelectedFiles([]);
+        setSelectedIntegration('');
+        setSelectedTemplate('');
+        setManualQuery('');
+        setDestType('storage');
+        setDestConfig('{}');
     };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>Create Workflow</DialogTitle>
                     <DialogDescription>
-                        Define a new automated workflow.
+                        Configure your automated data pipeline.
                     </DialogDescription>
                 </DialogHeader>
-                <Form {...form}>
-                    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-                        <FormField
-                            control={form.control}
-                            name="name"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Name</FormLabel>
-                                    <FormControl>
-                                        <Input placeholder="Daily ETL" {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="description"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Description</FormLabel>
-                                    <FormControl>
-                                        <Textarea placeholder="Describe the workflow..." {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <div className="grid grid-cols-2 gap-4">
-                            <FormField
-                                control={form.control}
-                                name="schedule"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Schedule (Cron)</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="0 0 * * *" className="font-mono" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="type"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Type</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Select type" />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="sql">SQL Query</SelectItem>
-                                                <SelectItem value="javascript">JavaScript</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                        </div>
-                        <FormField
-                            control={form.control}
-                            name="content"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Content</FormLabel>
-                                    <FormControl>
-                                        <Textarea
-                                            placeholder="SELECT * FROM ..."
-                                            className="font-mono min-h-[150px]"
-                                            {...field}
+
+                <form onSubmit={handleSubmit}>
+                    <Tabs defaultValue="general" className="w-full">
+                        <TabsList className="grid w-full grid-cols-4">
+                            <TabsTrigger value="general">General</TabsTrigger>
+                            <TabsTrigger value="source">Source</TabsTrigger>
+                            <TabsTrigger value="transform">Transform</TabsTrigger>
+                            <TabsTrigger value="dest">Destination</TabsTrigger>
+                        </TabsList>
+
+                        <div className="py-4 h-[400px] overflow-y-auto pr-2">
+                            <TabsContent value="general" className="space-y-4 mt-0">
+                                <div className="space-y-2">
+                                    <Label htmlFor="name">Name</Label>
+                                    <Input
+                                        id="name"
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        placeholder="Daily Sales Report"
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="description">Description</Label>
+                                    <Textarea
+                                        id="description"
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        placeholder="Describe what this workflow does..."
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Execution Type</Label>
+                                    <div className="flex gap-4">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                checked={executionType === 'scheduled'}
+                                                onChange={() => setExecutionType('scheduled')}
+                                                className="w-4 h-4"
+                                            />
+                                            <span>Scheduled (Recurring)</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="radio"
+                                                checked={executionType === 'once'}
+                                                onChange={() => setExecutionType('once')}
+                                                className="w-4 h-4"
+                                            />
+                                            <span>One-Time</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                {executionType === 'scheduled' && (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="schedule">Schedule (Cron)</Label>
+                                        <Input
+                                            id="schedule"
+                                            value={schedule}
+                                            onChange={(e) => setSchedule(e.target.value)}
+                                            placeholder="0 0 * * *"
+                                            className="font-mono"
+                                            required
                                         />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            Format: Minute Hour Day Month DayOfWeek
+                                        </p>
+                                    </div>
+                                )}
+                            </TabsContent>
+
+                            <TabsContent value="source" className="space-y-4 mt-0">
+                                <div className="space-y-2">
+                                    <Label>Source Type</Label>
+                                    <select
+                                        className="w-full p-2 border rounded-md bg-background"
+                                        value={sourceType}
+                                        onChange={(e) => setSourceType(e.target.value)}
+                                    >
+                                        <option value="none">None (Use existing data)</option>
+                                        <option value="file">Files (From uploads)</option>
+                                        <option value="integration">Integration (External DB/API)</option>
+                                        <option value="ftp">FTP Server</option>
+                                        <option value="api">External API</option>
+                                        <option value="upload">File Upload (Triggered)</option>
+                                    </select>
+                                </div>
+                                {sourceType === 'file' && (
+                                    <div className="space-y-2">
+                                        <Label>Select Files to Load</Label>
+                                        <div className="border rounded-md p-3 max-h-[250px] overflow-y-auto space-y-2">
+                                            {availableFiles.length === 0 ? (
+                                                <p className="text-sm text-muted-foreground">No files uploaded yet. Upload files in the Storage page first.</p>
+                                            ) : (
+                                                availableFiles.map((file, idx) => {
+                                                    const isSelected = selectedFiles.some(f => f.path === file.path);
+                                                    const fileExt = file.name.split('.').pop()?.toLowerCase();
+                                                    const format = fileExt === 'csv' ? 'csv' : fileExt === 'parquet' ? 'parquet' : fileExt === 'json' ? 'json' : 'csv';
+                                                    const defaultTableName = file.name.split('.')[0].replace(/[^a-zA-Z0-9_]/g, '_');
+
+                                                    return (
+                                                        <div key={idx} className="flex items-center gap-2 p-2 border rounded hover:bg-accent">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={isSelected}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) {
+                                                                        setSelectedFiles([...selectedFiles, {
+                                                                            path: file.path,
+                                                                            table_name: defaultTableName,
+                                                                            format
+                                                                        }]);
+                                                                    } else {
+                                                                        setSelectedFiles(selectedFiles.filter(f => f.path !== file.path));
+                                                                    }
+                                                                }}
+                                                                className="w-4 h-4"
+                                                            />
+                                                            <div className="flex-1">
+                                                                <div className="text-sm font-medium">{file.name}</div>
+                                                                <div className="text-xs text-muted-foreground">Table: {defaultTableName}</div>
+                                                            </div>
+                                                            <span className="text-xs px-2 py-1 bg-secondary rounded">{format.toUpperCase()}</span>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                        {selectedFiles.length > 0 && (
+                                            <p className="text-xs text-muted-foreground">
+                                                {selectedFiles.length} file(s) selected. These will be loaded as DuckDB tables.
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                                {sourceType === 'integration' && (
+                                    <div className="space-y-2">
+                                        <Label>Select Integration</Label>
+                                        <select
+                                            className="w-full p-2 border rounded-md bg-background"
+                                            value={selectedIntegration}
+                                            onChange={(e) => setSelectedIntegration(e.target.value)}
+                                        >
+                                            <option value="">Select an integration...</option>
+                                            {integrations.map((i: any) => (
+                                                <option key={i.id} value={i.id}>{i.name} ({i.provider})</option>
+                                            ))}
+                                        </select>
+                                        {integrations.length === 0 && (
+                                            <p className="text-xs text-muted-foreground">
+                                                No integrations found. Create one in the Integrations page.
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                                {sourceType !== 'none' && sourceType !== 'file' && sourceType !== 'integration' && (
+                                    <div className="space-y-2">
+                                        <Label>Configuration (JSON)</Label>
+                                        <Textarea
+                                            value={sourceConfig}
+                                            onChange={(e) => setSourceConfig(e.target.value)}
+                                            className="font-mono h-[200px]"
+                                            placeholder='{"url": "...", "auth": "..."}'
+                                        />
+                                    </div>
+                                )}
+                            </TabsContent>
+
+                            <TabsContent value="transform" className="space-y-4 mt-0">
+                                <div className="space-y-2">
+                                    <Label>Use Template</Label>
+                                    <select
+                                        className="w-full p-2 border rounded-md bg-background"
+                                        value={selectedTemplate}
+                                        onChange={(e) => setSelectedTemplate(e.target.value)}
+                                    >
+                                        <option value="">Select a template...</option>
+                                        {templates.map((t: any) => (
+                                            <option key={t.id} value={t.id}>{t.name}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="relative">
+                                    <div className="absolute inset-0 flex items-center">
+                                        <span className="w-full border-t" />
+                                    </div>
+                                    <div className="relative flex justify-center text-xs uppercase">
+                                        <span className="bg-background px-2 text-muted-foreground">
+                                            Or write manual query
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>SQL Query</Label>
+                                    <Textarea
+                                        value={manualQuery}
+                                        onChange={(e) => setManualQuery(e.target.value)}
+                                        className="font-mono h-[200px]"
+                                        placeholder="SELECT * FROM ..."
+                                        disabled={!!selectedTemplate}
+                                    />
+                                </div>
+                            </TabsContent>
+
+                            <TabsContent value="dest" className="space-y-4 mt-0">
+                                <div className="space-y-2">
+                                    <Label>Destination Type</Label>
+                                    <select
+                                        className="w-full p-2 border rounded-md bg-background"
+                                        value={destType}
+                                        onChange={(e) => setDestType(e.target.value)}
+                                    >
+                                        <option value="storage">Internal Storage (Transformed)</option>
+                                        <option value="ftp">FTP Server</option>
+                                        <option value="webhook">Webhook (POST)</option>
+                                    </select>
+                                </div>
+                                {destType !== 'storage' && (
+                                    <div className="space-y-2">
+                                        <Label>Configuration (JSON)</Label>
+                                        <Textarea
+                                            value={destConfig}
+                                            onChange={(e) => setDestConfig(e.target.value)}
+                                            className="font-mono h-[200px]"
+                                            placeholder='{"url": "https://api.example.com/webhook"}'
+                                        />
+                                    </div>
+                                )}
+                            </TabsContent>
+                        </div>
+
                         <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                                Cancel
+                            </Button>
                             <Button type="submit">Create Workflow</Button>
                         </DialogFooter>
-                    </form>
-                </Form>
+                    </Tabs>
+                </form>
             </DialogContent>
         </Dialog>
     );

@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Database } from 'lucide-react';
 import { toast } from 'sonner';
+import { apiClient } from '@/lib/api';
 
 export default function SignupPage() {
     const [formData, setFormData] = useState({
@@ -31,12 +32,15 @@ export default function SignupPage() {
 
         setLoading(true);
         try {
-            // TODO: Implement actual signup API call
-            // For now, just navigate to login
+            await apiClient.signup({
+                username: formData.username,
+                email: formData.email,
+                password: formData.password
+            });
             toast.success('Account created! Please login.');
             navigate('/login');
         } catch (err) {
-            toast.error('Signup failed. Please try again.');
+            toast.error(err instanceof Error ? err.message : 'Signup failed. Please try again.');
         } finally {
             setLoading(false);
         }
