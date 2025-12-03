@@ -244,6 +244,19 @@ export const apiClient = {
         return response.json();
     },
 
+    async getFiles(folder?: string): Promise<any> {
+        const url = folder
+            ? `${API_BASE_URL}/storage/files?folder=${folder}`
+            : `${API_BASE_URL}/storage/files`;
+        const response = await fetch(url, {
+            headers: withAuthHeaders(),
+        });
+        if (!response.ok) {
+            throw new Error('Failed to fetch files');
+        }
+        return response.json();
+    },
+
     // Audit logs
     async getAuditLogs(): Promise<any[]> {
         const response = await fetch(`${API_BASE_URL}/audit/`, {
@@ -254,9 +267,8 @@ export const apiClient = {
 
     // Integrations
     async getIntegrations(): Promise<any[]> {
-        const response = await fetch(`${API_BASE_URL}/integrations/`, {
-            headers: withAuthHeaders(),
-        });
+        const response = await fetch(`${API_BASE_URL}/integrations/`, { headers: withAuthHeaders() });
+        if (!response.ok) throw new Error('Failed to list integrations');
         return response.json();
     },
 
@@ -270,8 +282,8 @@ export const apiClient = {
             body: JSON.stringify(data),
         });
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Failed to create integration');
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.detail || 'Failed to create integration');
         }
         return response.json();
     },
@@ -285,28 +297,32 @@ export const apiClient = {
             },
             body: JSON.stringify(data),
         });
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Failed to update integration');
-        }
+        if (!response.ok) throw new Error('Failed to update integration');
         return response.json();
     },
 
-    async deleteIntegration(id: number): Promise<void> {
+    async deleteIntegration(id: number): Promise<any> {
         const response = await fetch(`${API_BASE_URL}/integrations/${id}`, {
             method: 'DELETE',
             headers: withAuthHeaders(),
         });
-        if (!response.ok) {
-            throw new Error('Failed to delete integration');
-        }
+        if (!response.ok) throw new Error('Failed to delete integration');
+        return response.json();
     },
 
-    async testIntegration(id: number): Promise<any> {
-        const response = await fetch(`${API_BASE_URL}/integrations/${id}/test`, {
+    async testIntegration(data: any): Promise<any> {
+        const response = await fetch(`${API_BASE_URL}/integrations/test`, {
             method: 'POST',
-            headers: withAuthHeaders(),
+            headers: {
+                'Content-Type': 'application/json',
+                ...withAuthHeaders(),
+            },
+            body: JSON.stringify(data),
         });
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.detail || 'Integration test failed');
+        }
         return response.json();
     },
 };

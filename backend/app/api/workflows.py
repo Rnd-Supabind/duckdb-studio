@@ -224,39 +224,6 @@ async def delete_workflow(
     
     return {"message": "Workflow deleted successfully"}
 
-@router.post("/{workflow_id}/cancel")
-async def cancel_workflow(
-    workflow_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Cancel all running executions for a workflow"""
-    
-    workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
-    if not workflow:
-        raise HTTPException(status_code=404, detail="Workflow not found")
-        
-    # Check ownership
-    if workflow.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to cancel this workflow")
-    
-    # Cancel running executions
-    if SCHEDULER_AVAILABLE and scheduler:
-        try:
-            await scheduler.cancel_running_executions(workflow_id, current_user.id)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to cancel executions: {str(e)}")
-    
-    await log_action(
-        db=db,
-        user_id=current_user.id,
-        action="workflow_cancelled",
-        resource_type="workflow",
-        resource_id=str(workflow_id)
-    )
-    
-    return {"message": "Running executions cancelled successfully"}
-
 class WorkflowUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None

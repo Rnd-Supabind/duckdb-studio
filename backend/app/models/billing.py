@@ -6,8 +6,11 @@ from app.db.database import Base
 
 class PlanType(str, enum.Enum):
     FREE = "free"
+    STANDARD = "standard"
     PRO = "pro"
     ENTERPRISE = "enterprise"
+    DEVELOPER = "developer"
+    ADMIN = "admin"
 
 class SubscriptionStatus(str, enum.Enum):
     ACTIVE = "active"
@@ -24,9 +27,11 @@ class Plan(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(50), unique=True, nullable=False)
+    description = Column(String(255), nullable=True)
     plan_type = Column(SQLEnum(PlanType), nullable=False)
     price_monthly = Column(Float, default=0.0)
     price_yearly = Column(Float, default=0.0)
+    features = Column(JSON, nullable=True)
     
     # Limits
     storage_gb = Column(Integer, default=1)
@@ -36,6 +41,7 @@ class Plan(Base):
     max_files = Column(Integer, default=50)
     
     is_active = Column(Boolean, default=True)
+    is_visible = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

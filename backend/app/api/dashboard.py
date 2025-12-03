@@ -44,33 +44,11 @@ async def get_dashboard_stats(
 ):
     """Get comprehensive dashboard statistics for the current user"""
     
-    # Get actual file count and storage from MinIO
-    from app.services.minio_service import minio_service
-    bucket_name = f"user-{current_user.username}"
-    
-    total_files = 0
-    uploaded_files = 0
-    transformed_files = 0
-    storage_bytes = 0
-    
-    try:
-        # List all objects in bucket
-        objects = minio_service.client.list_objects(bucket_name, recursive=True)
-        for obj in objects:
-            if not obj.object_name.endswith('.keep'):
-                total_files += 1
-                storage_bytes += obj.size
-                
-                # Count by folder
-                if obj.object_name.startswith('uploads/'):
-                    uploaded_files += 1
-                elif obj.object_name.startswith('transformed/'):
-                    transformed_files += 1
-    except Exception as e:
-        # Bucket might not exist yet
-        pass
-    
-    storage_mb = storage_bytes / (1024 * 1024)  # Convert to MB
+    # Get file count from audit logs (file uploads)
+    file_uploads = db.query(AuditLog).filter(
+        AuditLog.user_id == current_user.id,
+        AuditLog.action == "file_uploaded"
+    ).count()
     
     # Get workflow count
     workflow_count = db.query(Workflow).filter(
@@ -96,6 +74,9 @@ async def get_dashboard_stats(
         AuditLog.user_id == current_user.id,
         AuditLog.action == "query_failed"
     ).count()
+    
+    # Calculate storage (rough estimate from MinIO - would need actual MinIO API call for real size)
+    storage_mb = file_uploads * 1.5  # Rough estimate
     
     # Get recent activity (last 10 actions)
     recent_activity = db.query(AuditLog).filter(
@@ -151,7 +132,7 @@ async def get_dashboard_stats(
         )
     
     stats = DashboardStats(
-        total_files=uploaded_files,  # Count of files in uploads folder
+        total_files=file_uploads,
         total_workflows=workflow_count,
         total_query_executions=total_queries,
         storage_used_mb=storage_mb,

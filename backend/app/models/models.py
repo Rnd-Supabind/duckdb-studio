@@ -133,19 +133,18 @@ class QueryTemplate(Base):
 
 class Integration(Base):
     __tablename__ = "integrations"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
-    provider = Column(String(50), nullable=False)  # openai, anthropic, postgres, etc.
+    provider = Column(String(50), nullable=False)
     name = Column(String(255), nullable=False)
     encrypted_credentials = Column(Text, nullable=False)
-    config = Column(Text, nullable=True)  # JSON config (non-sensitive)
+    config = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    # Relationships
+
     user = relationship("User", back_populates="integrations")
 
-# Add relationship to User model
+# Add relationship to User for integrations
 User.integrations = relationship("Integration", back_populates="user", cascade="all, delete-orphan")

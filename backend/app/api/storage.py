@@ -102,7 +102,12 @@ async def upload_file(
             message=f"File uploaded successfully to {bucket_name}/{object_name}"
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"Upload error: {e}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 @router.get("/files")

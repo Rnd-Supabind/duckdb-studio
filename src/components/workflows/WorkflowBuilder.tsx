@@ -19,7 +19,7 @@ import {
   Settings
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { apiClient } from '@/lib/api';
+import { apiClient, api } from '@/lib/api';
 
 interface WorkflowStepResult {
   step: string;
@@ -64,6 +64,16 @@ export function WorkflowBuilder({ workflowId, onClose }: WorkflowBuilderProps) {
     loadTemplates();
   }, [workflowId]);
 
+  // When a template is chosen, auto-fill the query if empty
+  useEffect(() => {
+    if (templateId && templates.length > 0) {
+      const tpl = templates.find((t) => t.id === templateId);
+      if (tpl && (!query || query.trim().length === 0)) {
+        setQuery(tpl.query || '');
+      }
+    }
+  }, [templateId, templates]);
+
   const loadWorkflow = async () => {
     try {
       const workflows = await apiClient.getWorkflows();
@@ -87,7 +97,7 @@ export function WorkflowBuilder({ workflowId, onClose }: WorkflowBuilderProps) {
   const loadTemplates = async () => {
     setTemplateLoading(true);
     try {
-      const data = await apiClient.get('/workflows/templates');
+      const data = await api.get('/workflows/templates');
       setTemplates(data);
     } catch (err) {
       console.error('Failed to load templates', err);
@@ -95,6 +105,26 @@ export function WorkflowBuilder({ workflowId, onClose }: WorkflowBuilderProps) {
       setTemplateLoading(false);
     }
   };
+
+  // Uploaded files for file-based sources
+  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
+
+  const loadUploadedFiles = async () => {
+    try {
+      const res = await api.get('/storage/files?folder=uploads');
+      setUploadedFiles(res.files || []);
+    } catch (err) {
+      console.debug('Failed to load uploaded files', err);
+      setUploadedFiles([]);
+    }
+  };
+
+  useEffect(() => {
+    // load uploaded files when sourceType is file
+    if (sourceType === 'file') {
+      loadUploadedFiles();
+    }
+  }, [sourceType]);
 
   const validateCron = (cron: string): boolean => {
     const cronRegex = /^(\*|([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])|\*\/([0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9])) (\*|([0-9]|1[0-9]|2[0-3])|\*\/([0-9]|1[0-9]|2[0-3])) (\*|([1-9]|1[0-9]|2[0-9]|3[0-1])|\*\/([1-9]|1[0-9]|2[0-9]|3[0-1])) (\*|([1-9]|1[0-2])|\*\/([1-9]|1[0-2])) (\*|([0-6])|\*\/([0-6]))$/;
@@ -412,6 +442,47 @@ export function WorkflowBuilder({ workflowId, onClose }: WorkflowBuilderProps) {
               />
             </div>
           )}
+
+                  {sourceType === 'file' && (
+                    <div className="mt-3 space-y-3">
+                      <label className="block text-sm font-medium">Choose uploaded file(s)</label>
+                      {uploadedFiles.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">No uploaded files found in your 'uploads' folder.</div>
+                      ) : (
+                        <div className="grid gap-2">
+                          {uploadedFiles.map((f: any) => (
+                            <label key={f.path} className="flex items-center gap-3 p-2 border rounded hover:bg-muted/50 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={(() => {
+                                  try {
+                                    const cfg = JSON.parse(sourceConfig || '{}');
+                                    return Array.isArray(cfg.files) && cfg.files.some((x: any) => x.path === f.path);
+                                  } catch (e) { return false; }
+                                })()}
+                                onChange={(e) => {
+                                  let cfg: any = {};
+                                  try { cfg = JSON.parse(sourceConfig || '{}'); } catch (err) { cfg = {}; }
+                                  cfg.files = cfg.files || [];
+                                  if (e.target.checked) {
+                                    cfg.files.push({ path: f.path, table_name: f.name.split('.')[0], format: f.name.split('.').pop() });
+                                  } else {
+                                    cfg.files = cfg.files.filter((x: any) => x.path !== f.path);
+                                  }
+                                  setSourceConfig(JSON.stringify(cfg));
+                                }}
+                              />
+                              <div className="flex-1 text-sm">
+                                <div className="font-medium">{f.name}</div>
+                                <div className="text-xs text-muted-foreground">{f.path}</div>
+                              </div>
+                              <div className="text-xs text-muted-foreground">{f.folder}</div>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
         </TabsContent>
 
         {/* DESTINATION TAB */}

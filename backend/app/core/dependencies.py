@@ -21,6 +21,10 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     
+    # Guard against missing/empty token
+    if not token:
+        raise credentials_exception
+
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         username: str = payload.get("sub")
@@ -40,7 +44,9 @@ async def get_current_user(
 
 async def require_admin(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> User:
     """Require admin role"""
-    if current_user.role != 'admin':
+    # Role may be an enum; normalize to lowercase string for comparison
+    role_value = getattr(current_user.role, 'value', str(current_user.role))
+    if str(role_value).lower() != 'admin':
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"

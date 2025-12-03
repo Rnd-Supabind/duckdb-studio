@@ -66,6 +66,7 @@ export function IntegrationDialog({ open, onOpenChange, onSuccess, integration }
 
         setTesting(true);
         setTestStatus('idle');
+        setTestMessage('');
         try {
             const data = {
                 name,
@@ -74,7 +75,7 @@ export function IntegrationDialog({ open, onOpenChange, onSuccess, integration }
                 config,
             };
 
-            const response = await apiClient.post('/integrations/test', data);
+            const response = await apiClient.testIntegration(data);
             setTestStatus('success');
             setTestMessage(response.message || 'Connection successful!');
             toast.success('Integration test passed!');
@@ -120,16 +121,16 @@ export function IntegrationDialog({ open, onOpenChange, onSuccess, integration }
     };
 
     const renderProviderFields = () => {
-        const providerInfo = PROVIDERS.find(p => p.value === provider);
-        
         switch (provider) {
             case 'openai':
+            case 'anthropic':
+            case 'gemini':
                 return (
                     <div className="space-y-4">
                         <Alert>
                             <AlertCircle className="h-4 w-4" />
                             <AlertDescription>
-                                Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline font-semibold">OpenAI API Keys</a>
+                                Provide your API key for this provider.
                             </AlertDescription>
                         </Alert>
                         <div className="space-y-2">
@@ -144,168 +145,32 @@ export function IntegrationDialog({ open, onOpenChange, onSuccess, integration }
                         </div>
                     </div>
                 );
-            case 'anthropic':
-                return (
-                    <div className="space-y-4">
-                        <Alert>
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertDescription>
-                                Get your API key from <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" className="underline font-semibold">Anthropic Console</a>
-                            </AlertDescription>
-                        </Alert>
-                        <div className="space-y-2">
-                            <Label>API Key *</Label>
-                            <Input
-                                type="password"
-                                value={credentials.api_key || ''}
-                                onChange={(e) => setCredentials({ ...credentials, api_key: e.target.value })}
-                                placeholder="sk-ant-..."
-                                required
-                            />
-                        </div>
-                    </div>
-                );
-            case 'gemini':
-                return (
-                    <div className="space-y-4">
-                        <Alert>
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertDescription>
-                                Get your API key from <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline font-semibold">Google AI Studio</a>
-                            </AlertDescription>
-                        </Alert>
-                        <div className="space-y-2">
-                            <Label>API Key *</Label>
-                            <Input
-                                type="password"
-                                value={credentials.api_key || ''}
-                                onChange={(e) => setCredentials({ ...credentials, api_key: e.target.value })}
-                                placeholder="AIza..."
-                                required
-                            />
-                        </div>
-                    </div>
-                );
             case 'postgres':
-                return (
-                    <div className="space-y-4">
-                        <Alert>
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertDescription>
-                                Make sure your PostgreSQL server is accessible from the network
-                            </AlertDescription>
-                        </Alert>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label>Host *</Label>
-                                <Input
-                                    value={credentials.host || ''}
-                                    onChange={(e) => setCredentials({ ...credentials, host: e.target.value })}
-                                    placeholder="localhost"
-                                    required
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Port *</Label>
-                                <Input
-                                    type="number"
-                                    value={credentials.port || 5432}
-                                    onChange={(e) => setCredentials({ ...credentials, port: parseInt(e.target.value) })}
-                                    placeholder="5432"
-                                    required
-                                />
-                            </div>
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Database *</Label>
-                            <Input
-                                value={credentials.database || ''}
-                                onChange={(e) => setCredentials({ ...credentials, database: e.target.value })}
-                                placeholder="mydb"
-                                required
-                            />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label>Username *</Label>
-                                <Input
-                                    value={credentials.username || ''}
-                                    onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
-                                    placeholder="user"
-                                    required
-                                />
-                            </div>
-                            <div className="space-y-2">
-                                <Label>Password *</Label>
-                                <Input
-                                    type="password"
-                                    value={credentials.password || ''}
-                                    onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
-                                    placeholder={integration ? '(Unchanged)' : 'password'}
-                                    required={!integration}
-                                />
-                            </div>
-                        </div>
-                    </div>
-                );
             case 'mysql':
                 return (
                     <div className="space-y-4">
-                        <Alert>
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertDescription>
-                                Make sure your MySQL server is accessible and user has permissions
-                            </AlertDescription>
-                        </Alert>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>Host *</Label>
-                                <Input
-                                    value={credentials.host || ''}
-                                    onChange={(e) => setCredentials({ ...credentials, host: e.target.value })}
-                                    placeholder="localhost"
-                                    required
-                                />
+                                <Input value={credentials.host || ''} onChange={(e) => setCredentials({ ...credentials, host: e.target.value })} placeholder="localhost" required />
                             </div>
                             <div className="space-y-2">
                                 <Label>Port *</Label>
-                                <Input
-                                    type="number"
-                                    value={credentials.port || 3306}
-                                    onChange={(e) => setCredentials({ ...credentials, port: parseInt(e.target.value) })}
-                                    placeholder="3306"
-                                    required
-                                />
+                                <Input type="number" value={credentials.port || (provider === 'postgres' ? 5432 : 3306)} onChange={(e) => setCredentials({ ...credentials, port: parseInt(e.target.value) })} placeholder={provider === 'postgres' ? '5432' : '3306'} required />
                             </div>
                         </div>
                         <div className="space-y-2">
                             <Label>Database *</Label>
-                            <Input
-                                value={credentials.database || ''}
-                                onChange={(e) => setCredentials({ ...credentials, database: e.target.value })}
-                                placeholder="mydb"
-                                required
-                            />
+                            <Input value={credentials.database || ''} onChange={(e) => setCredentials({ ...credentials, database: e.target.value })} placeholder="mydb" required />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>Username *</Label>
-                                <Input
-                                    value={credentials.username || ''}
-                                    onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
-                                    placeholder="root"
-                                    required
-                                />
+                                <Input value={credentials.username || ''} onChange={(e) => setCredentials({ ...credentials, username: e.target.value })} placeholder="user" required />
                             </div>
                             <div className="space-y-2">
                                 <Label>Password *</Label>
-                                <Input
-                                    type="password"
-                                    value={credentials.password || ''}
-                                    onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
-                                    placeholder={integration ? '(Unchanged)' : 'password'}
-                                    required={!integration}
-                                />
+                                <Input type="password" value={credentials.password || ''} onChange={(e) => setCredentials({ ...credentials, password: e.target.value })} placeholder={integration ? '(Unchanged)' : 'password'} required={!integration} />
                             </div>
                         </div>
                     </div>
@@ -315,29 +180,15 @@ export function IntegrationDialog({ open, onOpenChange, onSuccess, integration }
                     <div className="space-y-4">
                         <div className="space-y-2">
                             <Label>Base URL *</Label>
-                            <Input
-                                value={config.url || ''}
-                                onChange={(e) => setConfig({ ...config, url: e.target.value })}
-                                placeholder="https://api.example.com"
-                                required
-                            />
+                            <Input value={config.url || ''} onChange={(e) => setConfig({ ...config, url: e.target.value })} placeholder="https://api.example.com" required />
                         </div>
                         <div className="space-y-2">
-                            <Label>Auth Header Name (Optional)</Label>
-                            <Input
-                                value={credentials.auth_header || 'Authorization'}
-                                onChange={(e) => setCredentials({ ...credentials, auth_header: e.target.value })}
-                                placeholder="Authorization"
-                            />
+                            <Label>Auth Header (Optional)</Label>
+                            <Input value={credentials.auth_header || 'Authorization'} onChange={(e) => setCredentials({ ...credentials, auth_header: e.target.value })} placeholder="Authorization" />
                         </div>
                         <div className="space-y-2">
-                            <Label>Auth Token / API Key (Optional)</Label>
-                            <Input
-                                type="password"
-                                value={credentials.auth_token || ''}
-                                onChange={(e) => setCredentials({ ...credentials, auth_token: e.target.value })}
-                                placeholder={integration ? '(Unchanged)' : 'Bearer ...'}
-                            />
+                            <Label>Auth Token (Optional)</Label>
+                            <Input type="password" value={credentials.auth_token || ''} onChange={(e) => setCredentials({ ...credentials, auth_token: e.target.value })} placeholder={integration ? '(Unchanged)' : 'Bearer ...'} />
                         </div>
                     </div>
                 );
@@ -354,28 +205,15 @@ export function IntegrationDialog({ open, onOpenChange, onSuccess, integration }
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-5">
                     <div className="space-y-2">
-                        <Label htmlFor="name" className="font-semibold">
-                            Integration Name *
-                        </Label>
-                        <Input
-                            id="name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="e.g., My OpenAI Account"
-                            required
-                        />
-                        <p className="text-xs text-muted-foreground">
-                            Choose a descriptive name to identify this integration
-                        </p>
+                        <Label>Integration Name *</Label>
+                        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g., My OpenAI account" required />
                     </div>
 
                     {!integration && (
                         <div className="space-y-2">
-                            <Label htmlFor="provider" className="font-semibold">
-                                Provider *
-                            </Label>
+                            <Label>Provider *</Label>
                             <Select value={provider} onValueChange={setProvider}>
-                                <SelectTrigger id="provider">
+                                <SelectTrigger>
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -402,48 +240,18 @@ export function IntegrationDialog({ open, onOpenChange, onSuccess, integration }
 
                     {testStatus !== 'idle' && (
                         <Alert variant={testStatus === 'success' ? 'default' : 'destructive'}>
-                            {testStatus === 'success' ? (
-                                <CheckCircle2 className="h-4 w-4" />
-                            ) : (
-                                <AlertCircle className="h-4 w-4" />
-                            )}
+                            {testStatus === 'success' ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
                             <AlertDescription>{testMessage}</AlertDescription>
                         </Alert>
                     )}
 
                     <DialogFooter className="flex gap-2 justify-between">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={handleTest}
-                            disabled={testing || !name.trim()}
-                            className="flex gap-2"
-                        >
-                            {testing ? (
-                                <>
-                                    <RefreshCw className="h-4 w-4 animate-spin" />
-                                    Testing...
-                                </>
-                            ) : (
-                                <>
-                                    {testStatus === 'success' ? (
-                                        <>
-                                            <CheckCircle2 className="h-4 w-4 text-green-500" />
-                                            Connected
-                                        </>
-                                    ) : (
-                                        'Test Connection'
-                                    )}
-                                </>
-                            )}
+                        <Button type="button" variant="outline" onClick={handleTest} disabled={testing || !name.trim()}>
+                            {testing ? (<><RefreshCw className="h-4 w-4 animate-spin" /> Testing...</>) : (testStatus === 'success' ? <> <CheckCircle2 className="h-4 w-4 text-green-500" /> Connected</> : 'Test Connection')}
                         </Button>
                         <div className="flex gap-2">
-                            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                                Cancel
-                            </Button>
-                            <Button type="submit" disabled={loading}>
-                                {loading ? 'Saving...' : integration ? 'Update Integration' : 'Save Integration'}
-                            </Button>
+                            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                            <Button type="submit" disabled={loading}>{loading ? 'Saving...' : integration ? 'Update Integration' : 'Save Integration'}</Button>
                         </div>
                     </DialogFooter>
                 </form>

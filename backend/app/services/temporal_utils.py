@@ -14,27 +14,48 @@ async def ensure_namespace(namespace: str, address: str = "temporal:7233") -> bo
     Ensure a Temporal namespace exists. Returns True if ensured/created, False otherwise.
     """
     try:
-        service = await ServiceClient.connect(address)
+        # Add connection timeout
+        import asyncio
+        from temporalio.service import ConnectConfig
+        
+        # Create proper connection config
+        connect_config = ConnectConfig(target_host=address)
+        
+        # Connect with timeout
+        try:
+            service = await asyncio.wait_for(
+                ServiceClient.connect(connect_config),
+                timeout=10.0  # 10 second timeout
+            )
+        except asyncio.TimeoutError:
+            print(f"Timeout connecting to Temporal at {address}")
+            return False
+            
         req = RegisterNamespaceRequest(
             namespace=namespace,
             workflow_execution_retention_period=Duration(seconds=7 * 24 * 3600),
         )
         try:
             await service.workflow_service.register_namespace(req)
+            print(f"✓ Created Temporal namespace: {namespace}")
             return True
         except RPCError as err:
             # Namespace may already exist; treat as success
             if "AlreadyExists" in str(err) or "already exists" in str(err):
+                print(f"✓ Temporal namespace already exists: {namespace}")
                 return True
             # If register failed, try describe; if it exists, consider success
             try:
                 await service.workflow_service.describe_namespace(
                     DescribeNamespaceRequest(namespace=namespace)
                 )
+                print(f"✓ Temporal namespace exists: {namespace}")
                 return True
-            except Exception:
+            except Exception as e:
+                print(f"✗ Failed to verify namespace {namespace}: {e}")
                 return False
-    except Exception:
+    except Exception as e:
+        print(f"✗ Error ensuring Temporal namespace {namespace}: {e}")
         return False
 
 

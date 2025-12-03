@@ -3,11 +3,7 @@ Seed the database with initial data
 """
 from app.models.models import User, UserRole
 from app.db.database import SessionLocal
-import hashlib
-
-def hash_password(password: str) -> str:
-    """Simple password hashing for demo purposes"""
-    return hashlib.sha256(password.encode()).hexdigest()
+from app.core.security import get_password_hash
 
 def seed_db():
     db = SessionLocal()
@@ -21,7 +17,7 @@ def seed_db():
             admin = User(
                 username="admin",
                 email="admin@dataforge.local",
-                hashed_password=hash_password("admin123"),
+                hashed_password=get_password_hash("admin123"),
                 role=UserRole.ADMIN,
                 is_active=True
             )
@@ -39,7 +35,7 @@ def seed_db():
             demo = User(
                 username="demo",
                 email="demo@dataforge.local",
-                hashed_password=hash_password("demo123"),
+                hashed_password=get_password_hash("demo123"),
                 role=UserRole.USER,
                 is_active=True
             )

@@ -25,7 +25,6 @@ export const settingsNavigation: NavigationItem[] = [
 ];
 
 export const adminMenuItems: NavigationItem[] = [
-  { name: 'Admin Dashboard', href: '/admin/dashboard', icon: LayoutDashboard, adminOnly: true },
   { name: 'User Management', href: '/admin/users', icon: Users, adminOnly: true },
   { name: 'Plans & Billing', href: '/admin/plans', icon: CreditCard, adminOnly: true },
   { name: 'Audit Logs', href: '/admin/audit', icon: Activity, adminOnly: true },

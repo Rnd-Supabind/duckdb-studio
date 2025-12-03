@@ -35,8 +35,6 @@ export function CreateWorkflowDialog({
     const [sourceConfig, setSourceConfig] = useState('{}');
     const [availableFiles, setAvailableFiles] = useState<any[]>([]);
     const [selectedFiles, setSelectedFiles] = useState<{ path: string, table_name: string, format: string }[]>([]);
-    const [integrations, setIntegrations] = useState<any[]>([]);
-    const [selectedIntegration, setSelectedIntegration] = useState<string>('');
 
     // Transformation
     const [templates, setTemplates] = useState<any[]>([]);
@@ -50,24 +48,14 @@ export function CreateWorkflowDialog({
     useEffect(() => {
         if (open) {
             apiClient.getTemplates().then(setTemplates).catch(console.error);
-            apiClient.getIntegrations().then(setIntegrations).catch(console.error);
-            // Fetch user's uploaded files
-            const token = localStorage.getItem('auth_token');
-            fetch('/api/v1/storage/files?folder=uploads', {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            })
-                .then(res => {
-                    if (!res.ok) throw new Error('Failed to fetch files');
-                    return res.json();
-                })
+            // Fetch user's uploaded files using API client
+            apiClient.getFiles('uploads')
                 .then(data => {
-                    console.log('Fetched files:', data);
+                    console.log('Files loaded:', data);
                     setAvailableFiles(data.files || []);
                 })
                 .catch(err => {
-                    console.error('Error fetching files:', err);
+                    console.error('Failed to load files:', err);
                     setAvailableFiles([]);
                 });
         }
@@ -76,12 +64,10 @@ export function CreateWorkflowDialog({
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Build source config
+        // Build source config for file type
         let finalSourceConfig = sourceConfig;
         if (sourceType === 'file' && selectedFiles.length > 0) {
             finalSourceConfig = JSON.stringify({ files: selectedFiles });
-        } else if (sourceType === 'integration' && selectedIntegration) {
-            finalSourceConfig = JSON.stringify({ integration_id: parseInt(selectedIntegration) });
         }
 
         onSubmit({
@@ -104,7 +90,6 @@ export function CreateWorkflowDialog({
         setSourceType('none');
         setSourceConfig('{}');
         setSelectedFiles([]);
-        setSelectedIntegration('');
         setSelectedTemplate('');
         setManualQuery('');
         setDestType('storage');
@@ -202,7 +187,6 @@ export function CreateWorkflowDialog({
                                     >
                                         <option value="none">None (Use existing data)</option>
                                         <option value="file">Files (From uploads)</option>
-                                        <option value="integration">Integration (External DB/API)</option>
                                         <option value="ftp">FTP Server</option>
                                         <option value="api">External API</option>
                                         <option value="upload">File Upload (Triggered)</option>
@@ -256,27 +240,7 @@ export function CreateWorkflowDialog({
                                         )}
                                     </div>
                                 )}
-                                {sourceType === 'integration' && (
-                                    <div className="space-y-2">
-                                        <Label>Select Integration</Label>
-                                        <select
-                                            className="w-full p-2 border rounded-md bg-background"
-                                            value={selectedIntegration}
-                                            onChange={(e) => setSelectedIntegration(e.target.value)}
-                                        >
-                                            <option value="">Select an integration...</option>
-                                            {integrations.map((i: any) => (
-                                                <option key={i.id} value={i.id}>{i.name} ({i.provider})</option>
-                                            ))}
-                                        </select>
-                                        {integrations.length === 0 && (
-                                            <p className="text-xs text-muted-foreground">
-                                                No integrations found. Create one in the Integrations page.
-                                            </p>
-                                        )}
-                                    </div>
-                                )}
-                                {sourceType !== 'none' && sourceType !== 'file' && sourceType !== 'integration' && (
+                                {sourceType !== 'none' && sourceType !== 'file' && (
                                     <div className="space-y-2">
                                         <Label>Configuration (JSON)</Label>
                                         <Textarea

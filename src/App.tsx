@@ -14,7 +14,6 @@ import WorkflowsPage from "./pages/WorkflowsPage";
 import IntegrationsPage from "./pages/IntegrationsPage";
 import FilesPage from './pages/FilesPage';
 import TransformedFilesPage from './pages/TransformedFilesPage';
-import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 import UserManagementPage from './pages/admin/UserManagementPage';
 import { PlansPage } from './pages/admin/PlansPage';
 import AuditLogsPage from './pages/admin/AuditLogsPage';
@@ -58,7 +57,6 @@ const App = () => (
                   <Route path="/" element={<AppLayout><DashboardPage /></AppLayout>} />
                   <Route path="/files" element={<AppLayout><FilesPage /></AppLayout>} />
                   <Route path="/transformed" element={<AppLayout><TransformedFilesPage /></AppLayout>} />
-                  <Route path="/admin/dashboard" element={<AppLayout><AdminDashboardPage /></AppLayout>} />
                   <Route path="/admin/users" element={<AppLayout><UserManagementPage /></AppLayout>} />
                   <Route path="/admin/plans" element={<AppLayout><PlansPage /></AppLayout>} />
                   <Route path="/admin/audit" element={<AppLayout><AuditLogsPage /></AppLayout>} />

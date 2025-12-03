@@ -32,6 +32,9 @@ services:
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - DUCKDB_EXTENSIONS=mysql,postgres,httpfs,aws
+      - SECRET_KEY=dataforge-secret-key-change-in-production-2024
+      - ENCRYPTION_KEY=8NNL2tkRwbXdcgyNhk5IBkARcWuW9S8Z9ZGSddDmy7Y=
+      - TEMPORAL_ADDRESS=temporal:7233
     depends_on:
       - db
       - minio
@@ -52,6 +55,7 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+      - ./backend/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     restart: always
 
   minio:

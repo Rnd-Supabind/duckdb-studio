@@ -182,8 +182,8 @@ class WorkflowScheduler:
         try:
             # Get workflow config from database
             workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
-            if not workflow:
-                logger.warning(f"Workflow {workflow_id} not found")
+            if not workflow or workflow.status != "active":
+                logger.warning(f"Workflow {workflow_id} not found or not active")
                 return
             
             # Create execution record
@@ -230,7 +230,7 @@ class WorkflowScheduler:
                 "source_config": workflow.source_config or "{}",
                 "query": query_to_run,
                 "destination_type": workflow.destination_type or "storage",
-                "destination_config": workflow.destination_config or "{}",
+                "destination_config": workflow.destination_config or "{}"
             }
             
             # Start Temporal workflow
